@@ -20,6 +20,13 @@ namespace SMGI.Plugin.CartographicGeneralization
 {
     class CheckHelper
     {
+        public static IFeatureClass WaterFacilityPointFC = null;
+        public static IFeatureClass WaterFacilityLineFC = null;
+        public static IFeatureClass WaterFacilityAreaFC = null;
+
+        public static IFeatureClass RoadFacilityPointFC = null;
+        public static IFeatureClass RoadFacilityLineFC = null;
+        public static IFeatureClass RoadFacilityAreaFC = null;
 
         public static bool IsValidGeoDataBase(string DbPath)
         {
@@ -2050,6 +2057,20 @@ namespace SMGI.Plugin.CartographicGeneralization
                     IPoint errShape = (topologyErrorFeature as IFeature).Shape as IPoint;
                     if (errShape == null) //自重叠的类型此处不查（线段导不出点）
                         continue;
+
+                    // ==== 空间过滤：排除错误在附属设施中 ====
+                    if (
+                        (WaterFacilityPointFC != null && CheckHelper.ExistsFacilities(WaterFacilityPointFC, errShape, esriSpatialRelEnum.esriSpatialRelIntersects)) ||
+                        (WaterFacilityLineFC != null && CheckHelper.ExistsFacilities(WaterFacilityLineFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
+                        (WaterFacilityAreaFC != null && CheckHelper.ExistsFacilities(WaterFacilityAreaFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
+                        (RoadFacilityPointFC != null && CheckHelper.ExistsFacilities(RoadFacilityPointFC, errShape, esriSpatialRelEnum.esriSpatialRelIntersects)) ||
+                        (RoadFacilityLineFC != null && CheckHelper.ExistsFacilities(RoadFacilityLineFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
+                        (RoadFacilityAreaFC != null && CheckHelper.ExistsFacilities(RoadFacilityAreaFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin))
+                    )
+                    {
+                        continue; // 跳过这个错误
+                    }
+
                     result.Add(errShape, new KeyValuePair<int, int>(org_oid1, org_oid2));
                 }
 
@@ -2586,6 +2607,126 @@ namespace SMGI.Plugin.CartographicGeneralization
             }
 
             return true;
+        }
+
+        public void LoadFacilities(IFeatureWorkspace fws,
+            string WaterFacilityPointFCName, string WaterFacilityLineFCName, string WaterFacilityAreaFCName,
+            string RoadFacilityPointFCName, string RoadFacilityLineFCName, string RoadFacilityAreaFCName)
+        {
+            IWorkspace2 workspace2 = fws as IWorkspace2;
+            if (workspace2 == null)
+            {
+                Console.WriteLine("Provided workspace does not support IWorkspace2 interface.");
+                return;
+            }
+
+            // 加载水利设施 - 点
+            if (!string.IsNullOrEmpty(WaterFacilityPointFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityPointFCName])
+                    {
+                        WaterFacilityPointFC = fws.OpenFeatureClass(WaterFacilityPointFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading WaterFacilityPoint: " + ex.Message);
+                }
+            }
+
+            // 加载水利设施 - 线
+            if (!string.IsNullOrEmpty(WaterFacilityLineFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityLineFCName])
+                    {
+                        WaterFacilityLineFC = fws.OpenFeatureClass(WaterFacilityLineFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading WaterFacilityLine: " + ex.Message);
+                }
+            }
+
+            // 加载水利设施 - 面
+            if (!string.IsNullOrEmpty(WaterFacilityAreaFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityAreaFCName])
+                    {
+                        WaterFacilityAreaFC = fws.OpenFeatureClass(WaterFacilityAreaFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading WaterFacilityArea: " + ex.Message);
+                }
+            }
+
+            // 加载道路附属设施 - 点
+            if (!string.IsNullOrEmpty(RoadFacilityPointFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityPointFCName])
+                    {
+                        RoadFacilityPointFC = fws.OpenFeatureClass(RoadFacilityPointFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading RoadFacilityPoint: " + ex.Message);
+                }
+            }
+
+            // 加载道路附属设施 - 线
+            if (!string.IsNullOrEmpty(RoadFacilityLineFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityLineFCName])
+                    {
+                        RoadFacilityLineFC = fws.OpenFeatureClass(RoadFacilityLineFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading RoadFacilityLine: " + ex.Message);
+                }
+            }
+
+            // 加载道路附属设施 - 面
+            if (!string.IsNullOrEmpty(RoadFacilityAreaFCName))
+            {
+                try
+                {
+                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityAreaFCName])
+                    {
+                        RoadFacilityAreaFC = fws.OpenFeatureClass(RoadFacilityAreaFCName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error loading RoadFacilityArea: " + ex.Message);
+                }
+            }
+        }
+
+        public static bool ExistsFacilities(IFeatureClass fc, IGeometry geometry, esriSpatialRelEnum sr)
+        {
+            ISpatialFilter filter = new SpatialFilterClass();
+            filter.Geometry = geometry;
+            filter.SpatialRel = sr;
+            filter.GeometryField = fc.ShapeFieldName;
+
+            IFeatureCursor cursor = fc.Search(filter, false);
+            IFeature feature = cursor.NextFeature();
+            return feature != null;
         }
     }
 }
