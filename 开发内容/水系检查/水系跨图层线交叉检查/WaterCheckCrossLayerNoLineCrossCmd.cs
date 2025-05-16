@@ -15,13 +15,13 @@ using System.IO;
 namespace SMGI.Plugin.CartographicGeneralization
 {
     /// <summary>
-    /// 跨图层相交线检查
+    /// 跨图层水系相交线检查
     /// </summary>
-    public class CheckCrossLayerNoLineCrossCmd : SMGICommand
+    public class WaterCheckCrossLayerNoLineCrossCmd : SMGICommand
     {
         private List<Tuple<string, string, string, string, string>> tts = new List<Tuple<string, string, string, string, string>>(); //配置信息表（单行）
         public static ISpatialReference srf;
-        public static List<List<Tuple<int, string, int, string>>> errList = new List<List<Tuple<int, string, int, string>>>();
+        public static List<List<Tuple<IPoint, int, string, int, string>>> errList = new List<List<Tuple<IPoint, int, string, int, string>>>();
         public static string outputFileName = string.Empty;
 
         public override bool Enabled
@@ -35,7 +35,7 @@ namespace SMGI.Plugin.CartographicGeneralization
 
         public override void OnClick()
         {
-            outputFileName = OutputSetup.GetDir() + string.Format("\\{0}.shp", "跨图层相交线检查");
+            outputFileName = OutputSetup.GetDir() + string.Format("\\{0}.shp", "跨图层水系相交线检查");
 
             IWorkspace workspace = m_Application.Workspace.EsriWorkspace;
             IFeatureWorkspace featureWorkspace = (IFeatureWorkspace)workspace;
@@ -150,7 +150,7 @@ namespace SMGI.Plugin.CartographicGeneralization
                         fieldName2Len.Add("目标图层名", 40);
                         fieldName2Len.Add("交要素编号", 10);
                         fieldName2Len.Add("检查项", 16);
-                        resultFile.createErrorResutSHPFile(outputFileName, srf, esriGeometryType.esriGeometryPolyline, fieldName2Len);
+                        resultFile.createErrorResutSHPFile(outputFileName, srf, esriGeometryType.esriGeometryPoint, fieldName2Len);
                     }
 
                     //写入结果文件
@@ -159,15 +159,15 @@ namespace SMGI.Plugin.CartographicGeneralization
                         foreach (var itemInter in item)
                         {
                             Dictionary<string, string> fieldName2FieldValue = new Dictionary<string, string>();
-                            fieldName2FieldValue.Add("线图层名", itemInter.Item2.ToString());
-                            fieldName2FieldValue.Add("线要素编号", itemInter.Item1.ToString());
-                            fieldName2FieldValue.Add("目标图层名", itemInter.Item4.ToString());
-                            fieldName2FieldValue.Add("交要素编号", itemInter.Item3.ToString());
+                            fieldName2FieldValue.Add("线图层名", itemInter.Item3.ToString());
+                            fieldName2FieldValue.Add("线要素编号", itemInter.Item2.ToString());
+                            fieldName2FieldValue.Add("目标图层名", itemInter.Item5.ToString());
+                            fieldName2FieldValue.Add("交要素编号", itemInter.Item4.ToString());
                             fieldName2FieldValue.Add("检查项", "跨图层线交叉");
 
-                            IFeature fe = featureWorkspace.OpenFeatureClass(itemInter.Item2).GetFeature(itemInter.Item1);
-                            resultFile.addErrorGeometry(fe.ShapeCopy, fieldName2FieldValue);
-                            Marshal.ReleaseComObject(fe);
+                            //IFeature fe = featureWorkspace.OpenFeatureClass(itemInter.Item3).GetFeature(itemInter.Item2);
+                            resultFile.addErrorGeometry(itemInter.Item1, fieldName2FieldValue);
+                            //Marshal.ReleaseComObject(fe);
                         }
                     }
                 }
@@ -193,7 +193,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         {
             tts.Clear();
             string dbPath = GApplication.Application.Template.Root + @"\质检\质检内容配置.xlsx";
-            string tableName = "跨图层线交叉检查";
+            string tableName = "水系跨图层线交叉检查";
             DataTable ruleDataTable = CommonMethods.ReadToDataTable(dbPath, tableName);
             if (ruleDataTable == null)
             {

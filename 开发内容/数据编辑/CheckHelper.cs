@@ -1119,6 +1119,8 @@ namespace SMGI.Plugin.CartographicGeneralization
                     IFeature fe = temp_lineFC.GetFeature(topologyErrorFeature.OriginOID);
                     int org_oid = int.Parse(fe.get_Value(orgOIDIndex).ToString());
 
+                    if (CheckHelper.ExistsWaterFacilities(fe.ShapeCopy, (lineFC as IDataset).Workspace as IFeatureWorkspace)) continue;
+
                     result.Add(org_oid);
                 }
 
@@ -1484,6 +1486,9 @@ namespace SMGI.Plugin.CartographicGeneralization
                     int org_oid2 = int.Parse(fe.get_Value(orgOIDIndex).ToString());
 
                     IPoint p = (topologyErrorFeature as IFeature).Shape as IPoint;
+
+                    if (CheckHelper.ExistsWaterFacilities(p, (lineFC as IDataset).Workspace as IFeatureWorkspace)) continue;
+
                     if(p != null)
                         result.Add(p, new KeyValuePair<int, int>(org_oid1, org_oid2));
                 }
@@ -2059,17 +2064,7 @@ namespace SMGI.Plugin.CartographicGeneralization
                         continue;
 
                     // ==== 空间过滤：排除错误在附属设施中 ====
-                    if (
-                        (WaterFacilityPointFC != null && CheckHelper.ExistsFacilities(WaterFacilityPointFC, errShape, esriSpatialRelEnum.esriSpatialRelIntersects)) ||
-                        (WaterFacilityLineFC != null && CheckHelper.ExistsFacilities(WaterFacilityLineFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
-                        (WaterFacilityAreaFC != null && CheckHelper.ExistsFacilities(WaterFacilityAreaFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
-                        (RoadFacilityPointFC != null && CheckHelper.ExistsFacilities(RoadFacilityPointFC, errShape, esriSpatialRelEnum.esriSpatialRelIntersects)) ||
-                        (RoadFacilityLineFC != null && CheckHelper.ExistsFacilities(RoadFacilityLineFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin)) ||
-                        (RoadFacilityAreaFC != null && CheckHelper.ExistsFacilities(RoadFacilityAreaFC, errShape, esriSpatialRelEnum.esriSpatialRelWithin))
-                    )
-                    {
-                        continue; // 跳过这个错误
-                    }
+                    if (CheckHelper.ExistsWaterFacilities(errShape, (fc as IDataset).Workspace as IFeatureWorkspace)) continue;
 
                     result.Add(errShape, new KeyValuePair<int, int>(org_oid1, org_oid2));
                 }
@@ -2113,14 +2108,14 @@ namespace SMGI.Plugin.CartographicGeneralization
         /// <summary>
         /// 返回线要素类lineFC中所有与plgFC相交的线的原始OID对与对应图层名称
         /// </summary>
-        public static List<Tuple<int, string, int, string>> CrossLayerLineNoCross(
+        public static List<Tuple<IPoint, int, string, int, string>> CrossLayerLineNoCross(
             IFeatureClass lineFC,
             IQueryFilter lineQF,
             IFeatureClass plgFC,
             IQueryFilter plgQF,
             WaitOperation wo = null)
         {
-            List<Tuple<int, string, int, string>> result = new List<Tuple<int, string, int, string>>();
+            List<Tuple<IPoint, int, string, int, string>> result = new List<Tuple<IPoint, int, string, int, string>>();
 
             if (lineFC == null || plgFC == null)
                 return result;
@@ -2146,14 +2141,14 @@ namespace SMGI.Plugin.CartographicGeneralization
                 if (wo != null)
                     wo.SetText("正在提取要素......");
                 var temp_lineFC = CheckHelper.AddFeatureclassToFeatureDataset(temp_fdt, lineFC,
-                    string.Format("{0}_MustBeInsideBy", lineFC.AliasName), lineQF);
+                    string.Format("{0}_LineIntersect", lineFC.AliasName), lineQF);
                 int orgOIDIndex = temp_lineFC.FindField("org_oid");
                 if (orgOIDIndex == -1)
                     throw new Exception(string.Format("创建要素类【{0}】失败！", temp_lineFC.AliasName));
                 temp_topoFCList.Add(temp_lineFC);
 
                 var temp_referFC = CheckHelper.AddFeatureclassToFeatureDataset(temp_fdt, plgFC,
-                    string.Format("{0}_MustBeInside", plgFC.AliasName), plgQF, false);
+                    string.Format("{0}_LineIntersectBy", plgFC.AliasName), plgQF, false);
                 temp_topoFCList.Add(temp_referFC);
 
                 if (wo != null)
@@ -2185,7 +2180,14 @@ namespace SMGI.Plugin.CartographicGeneralization
                     int dst_oid = topologyErrorFeature.DestinationOID;
                     string dst_fc_name = plgFC.AliasName;
 
-                    result.Add(Tuple.Create(org_oid, org_fc_name, dst_oid, dst_fc_name));
+                    IPoint errShape = (topologyErrorFeature as IFeature).Shape as IPoint;
+                    if (errShape == null) //自重叠的类型此处不查（线段导不出点）
+                        continue;
+
+                    // ==== 空间过滤：排除错误在附属设施中 ====
+                    if (CheckHelper.ExistsWaterFacilities(errShape, (lineFC as IDataset).Workspace as IFeatureWorkspace)) continue;
+
+                    result.Add(Tuple.Create(errShape, org_oid, org_fc_name, dst_oid, dst_fc_name));
                 }
             }
             catch (Exception ex)
@@ -2259,20 +2261,20 @@ namespace SMGI.Plugin.CartographicGeneralization
                 if (wo != null)
                     wo.SetText("正在提取要素......");
                 var temp_lineFC = CheckHelper.AddFeatureclassToFeatureDataset(temp_fdt, lineFC,
-                    string.Format("{0}_MustBeInsideBy", lineFC.AliasName), lineQF);
+                    string.Format("{0}_LineNoCovered", lineFC.AliasName), lineQF);
                 int orgOIDIndex = temp_lineFC.FindField("org_oid");
                 if (orgOIDIndex == -1)
                     throw new Exception(string.Format("创建要素类【{0}】失败！", temp_lineFC.AliasName));
                 temp_topoFCList.Add(temp_lineFC);
 
                 var temp_referFC = CheckHelper.AddFeatureclassToFeatureDataset(temp_fdt, plgFC,
-                    string.Format("{0}_MustBeInside", plgFC.AliasName), plgQF, false);
+                    string.Format("{0}_LineNoCoveredBy", plgFC.AliasName), plgQF, false);
                 temp_topoFCList.Add(temp_referFC);
 
                 if (wo != null)
                     wo.SetText("正在构建拓扑......");
                 CheckHelper.CreateTopology(temp_fdt, temp_topoFCList, "跨图层线重叠检查结果",
-                    esriTopologyRuleType.esriTRTLineCoveredByLineClass, "Line Must not intersect", -1);
+                    esriTopologyRuleType.esriTRTLineCoveredByLineClass, "Line Must be Covered", -1);
 
                 if (wo != null)
                     wo.SetText("正在输出检查结果......");
@@ -2609,124 +2611,107 @@ namespace SMGI.Plugin.CartographicGeneralization
             return true;
         }
 
-        public void LoadFacilities(IFeatureWorkspace fws,
-            string WaterFacilityPointFCName, string WaterFacilityLineFCName, string WaterFacilityAreaFCName,
-            string RoadFacilityPointFCName, string RoadFacilityLineFCName, string RoadFacilityAreaFCName)
+        public static bool ExistsWaterFacilities(IGeometry geometry, IFeatureWorkspace featureWorkspace)
         {
-            IWorkspace2 workspace2 = fws as IWorkspace2;
-            if (workspace2 == null)
+            bool flag = false;
+
+            if (featureWorkspace == null || geometry == null)
             {
-                Console.WriteLine("Provided workspace does not support IWorkspace2 interface.");
-                return;
+                return flag;
             }
 
-            // 加载水利设施 - 点
-            if (!string.IsNullOrEmpty(WaterFacilityPointFCName))
+            ReadWaterFacilitiesConfig();
+
+            #region 逐项检查
+            foreach (var tt in waterFacilitiesTts)
             {
+                string ptName = tt.Item1;
+                string ptSQL = tt.Item2;
+                string beizhu = tt.Item3;
+                IFeatureClass ptFC = null;
+
                 try
                 {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityPointFCName])
+                    ptFC = featureWorkspace.OpenFeatureClass(ptName);
+                }
+                catch (Exception ex)
+                {
+                    continue;
+                }
+
+                if (ptFC == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    // 判断图层根据要素类型设定空间关系
+                    esriSpatialRelEnum sr;
+                    if (ptFC.ShapeType == esriGeometryType.esriGeometryPoint)
                     {
-                        WaterFacilityPointFC = fws.OpenFeatureClass(WaterFacilityPointFCName);
+                        sr = esriSpatialRelEnum.esriSpatialRelIntersects;
+                    }
+                    else
+                    {
+                        sr = esriSpatialRelEnum.esriSpatialRelWithin;
+                    }
+
+                    ISpatialFilter filter = new SpatialFilterClass();
+                    filter.Geometry = geometry;
+                    filter.SpatialRel = sr;
+                    filter.GeometryField = ptFC.ShapeFieldName;
+
+                    if (!string.IsNullOrEmpty(ptSQL))
+                    {
+                        filter.WhereClause = ptSQL;
+                    }
+
+                    IFeatureCursor cursor = ptFC.Search(filter, false);
+                    IFeature feature = cursor.NextFeature();
+
+                    // 释放游标资源（建议加上）
+                    System.Runtime.InteropServices.Marshal.ReleaseComObject(cursor);
+
+                    if (feature != null)
+                    {
+                        flag = true;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error loading WaterFacilityPoint: " + ex.Message);
+                    System.Diagnostics.Trace.WriteLine(ex.Message);
+                    System.Diagnostics.Trace.WriteLine(ex.Source);
+                    System.Diagnostics.Trace.WriteLine(ex.StackTrace);
+                    continue;
                 }
             }
+            #endregion
 
-            // 加载水利设施 - 线
-            if (!string.IsNullOrEmpty(WaterFacilityLineFCName))
-            {
-                try
-                {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityLineFCName])
-                    {
-                        WaterFacilityLineFC = fws.OpenFeatureClass(WaterFacilityLineFCName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error loading WaterFacilityLine: " + ex.Message);
-                }
-            }
-
-            // 加载水利设施 - 面
-            if (!string.IsNullOrEmpty(WaterFacilityAreaFCName))
-            {
-                try
-                {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, WaterFacilityAreaFCName])
-                    {
-                        WaterFacilityAreaFC = fws.OpenFeatureClass(WaterFacilityAreaFCName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error loading WaterFacilityArea: " + ex.Message);
-                }
-            }
-
-            // 加载道路附属设施 - 点
-            if (!string.IsNullOrEmpty(RoadFacilityPointFCName))
-            {
-                try
-                {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityPointFCName])
-                    {
-                        RoadFacilityPointFC = fws.OpenFeatureClass(RoadFacilityPointFCName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error loading RoadFacilityPoint: " + ex.Message);
-                }
-            }
-
-            // 加载道路附属设施 - 线
-            if (!string.IsNullOrEmpty(RoadFacilityLineFCName))
-            {
-                try
-                {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityLineFCName])
-                    {
-                        RoadFacilityLineFC = fws.OpenFeatureClass(RoadFacilityLineFCName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error loading RoadFacilityLine: " + ex.Message);
-                }
-            }
-
-            // 加载道路附属设施 - 面
-            if (!string.IsNullOrEmpty(RoadFacilityAreaFCName))
-            {
-                try
-                {
-                    if (workspace2.NameExists[esriDatasetType.esriDTFeatureClass, RoadFacilityAreaFCName])
-                    {
-                        RoadFacilityAreaFC = fws.OpenFeatureClass(RoadFacilityAreaFCName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error loading RoadFacilityArea: " + ex.Message);
-                }
-            }
+            return flag;
         }
 
-        public static bool ExistsFacilities(IFeatureClass fc, IGeometry geometry, esriSpatialRelEnum sr)
-        {
-            ISpatialFilter filter = new SpatialFilterClass();
-            filter.Geometry = geometry;
-            filter.SpatialRel = sr;
-            filter.GeometryField = fc.ShapeFieldName;
+        private static List<Tuple<string, string, string>> waterFacilitiesTts = new List<Tuple<string, string, string>>(); //配置信息表（单行）
 
-            IFeatureCursor cursor = fc.Search(filter, false);
-            IFeature feature = cursor.NextFeature();
-            return feature != null;
+        //读取质检内容配置表
+        private static void ReadWaterFacilitiesConfig()
+        {
+            waterFacilitiesTts.Clear();
+            string dbPath = GApplication.Application.Template.Root + @"\质检\质检内容配置.xlsx";
+            string tableName = "水系附属设施";
+            DataTable ruleDataTable = CommonMethods.ReadToDataTable(dbPath, tableName);
+            if (ruleDataTable == null)
+            {
+                return;
+            }
+            for (int i = 0; i < ruleDataTable.Rows.Count; i++)
+            {
+                string ptName = (ruleDataTable.Rows[i]["FCName"]).ToString();
+                string ptSQL = (ruleDataTable.Rows[i]["FilterString"]).ToString();
+                string beizhu = (ruleDataTable.Rows[i]["Beizhu"]).ToString();
+                Tuple<string, string, string > tt = new Tuple<string, string, string>(ptName, ptSQL, beizhu);
+                waterFacilitiesTts.Add(tt);
+            }
         }
     }
 }

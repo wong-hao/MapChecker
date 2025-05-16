@@ -15,9 +15,9 @@ using System.IO;
 namespace SMGI.Plugin.CartographicGeneralization
 {
     /// <summary>
-    /// 跨图层线重叠检查
+    /// 水系桥梁涵洞线跨图层线重叠检查
     /// </summary>
-    public class CheckCrossLayerLineOverlapCmd : SMGICommand
+    public class WaterBridgeCheckCrossLayerLineOverlapCmd : SMGICommand
     {
         private List<Tuple<string, string, string, string, string>> tts = new List<Tuple<string, string, string, string, string>>(); //配置信息表（单行）
         public static ISpatialReference srf;
@@ -35,7 +35,7 @@ namespace SMGI.Plugin.CartographicGeneralization
 
         public override void OnClick()
         {
-            outputFileName = OutputSetup.GetDir() + string.Format("\\{0}.shp", "跨图层线重叠检查");
+            outputFileName = OutputSetup.GetDir() + string.Format("\\{0}.shp", "水系桥梁涵洞线跨图层线重叠检查");
 
             IWorkspace workspace = m_Application.Workspace.EsriWorkspace;
             IFeatureWorkspace featureWorkspace = (IFeatureWorkspace)workspace;
@@ -70,7 +70,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         }
 
         /// <summary>
-        /// 跨图层线重叠检查
+        /// 水系桥梁涵洞线跨图层线重叠检查
         /// </summary>
         /// <param name="resultSHPFileName"></param>
         /// <param name="fcList"></param>
@@ -193,7 +193,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         {
             tts.Clear();
             string dbPath = GApplication.Application.Template.Root + @"\质检\质检内容配置.xlsx";
-            string tableName = "跨图层线重叠检查";
+            string tableName = "水系桥梁涵洞线跨图层线重叠检查";
             DataTable ruleDataTable = CommonMethods.ReadToDataTable(dbPath, tableName);
             if (ruleDataTable == null)
             {
