@@ -14,7 +14,7 @@ using ESRI.ArcGIS.TrackingAnalyst;
 
 namespace SMGI.Plugin.CartographicGeneralization
 {
-    public partial class CheckLineFallintoPolygonForm : Form
+    public partial class WaterCheckLineFallintoBuildingPolygonForm : Form
     {
         public enum CheckType
         {
@@ -75,7 +75,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         #endregion
 
         private GApplication _app;
-        public CheckLineFallintoPolygonForm(GApplication app)
+        public WaterCheckLineFallintoBuildingPolygonForm(GApplication app)
         {
             InitializeComponent();
 

@@ -47,22 +47,22 @@ namespace SMGI.Plugin.CartographicGeneralization
 
             IGeoFeatureLayer hydlLyr = m_Application.Workspace.LayerManager.GetLayer(new LayerManager.LayerChecker(l =>
             {
-                return (l is IGeoFeatureLayer) && ((l as IGeoFeatureLayer).FeatureClass.AliasName.ToUpper() == "HYDL");
+                return (l is IGeoFeatureLayer) && ((l as IGeoFeatureLayer).FeatureClass.AliasName.ToUpper() == "ZR_HL_L");
             })).ToArray().First() as IGeoFeatureLayer;
             if (hydlLyr == null)
             {
-                MessageBox.Show("缺少HYDL要素类！");
+                MessageBox.Show("缺少ZR_HL_L要素类！");
                 return;
             }
             IFeatureClass hydlFC = hydlLyr.FeatureClass;
 
             IGeoFeatureLayer hydaLyr = m_Application.Workspace.LayerManager.GetLayer(new LayerManager.LayerChecker(l =>
             {
-                return (l is IGeoFeatureLayer) && ((l as IGeoFeatureLayer).FeatureClass.AliasName.ToUpper() == "HYDA");
+                return (l is IGeoFeatureLayer) && ((l as IGeoFeatureLayer).FeatureClass.AliasName.ToUpper() == "RG_CJGL_A");
             })).ToArray().First() as IGeoFeatureLayer;
             if (hydaLyr == null)
             {
-                MessageBox.Show("缺少HYDA要素类！");
+                MessageBox.Show("缺少RG_CJGL_A要素类！");
                 return;
             }
             IFeatureClass hydaFC = hydaLyr.FeatureClass;
@@ -97,6 +97,33 @@ namespace SMGI.Plugin.CartographicGeneralization
             {
                 MessageBox.Show(err);
             }
+        }
+
+        private static string BuildWhereClause(IFeatureClass fc, string fieldName, string op, string value)
+        {
+            int idx = fc.FindField(fieldName);
+            if (idx == -1)
+                throw new ArgumentException("字段 " + fieldName + " 在要素类中不存在");
+
+            IField field = fc.Fields.get_Field(idx);
+            string clause = string.Empty;
+
+            switch (field.Type)
+            {
+                case esriFieldType.esriFieldTypeString:
+                    clause = string.Format("{0} {1} '{2}'", fieldName, op, value);
+                    break;
+                case esriFieldType.esriFieldTypeInteger:
+                case esriFieldType.esriFieldTypeSmallInteger:
+                case esriFieldType.esriFieldTypeSingle:
+                case esriFieldType.esriFieldTypeDouble:
+                    clause = string.Format("{0} {1} {2}", fieldName, op, value);
+                    break;
+                default:
+                    throw new NotSupportedException("字段 " + fieldName + " 的类型不支持用于构建SQL表达式");
+            }
+
+            return clause;
         }
 
         /// <summary>
@@ -158,9 +185,14 @@ namespace SMGI.Plugin.CartographicGeneralization
                 makeFeatureLayer.out_layer = outFCLyr;
                 SMGI.Common.Helper.ExecuteGPTool(gp, makeFeatureLayer, null);
                 selectLayerByAttribute.in_layer_or_view = outFCLyr;
-                selectLayerByAttribute.where_clause = "GB <= 240101";
+
+                string baseWhereClause = BuildWhereClause(hydaFC, "GB", "<=", "240101");
+
                 if (hydaFC.HasCollabField())
-                    selectLayerByAttribute.where_clause += " and "+ cmdUpdateRecord.CurFeatureFilter;
+                    baseWhereClause += " AND " + cmdUpdateRecord.CurFeatureFilter;
+
+                selectLayerByAttribute.where_clause = baseWhereClause;
+
                 SMGI.Common.Helper.ExecuteGPTool(gp, selectLayerByAttribute, null);
 
                 ESRI.ArcGIS.DataManagementTools.Dissolve diss = new ESRI.ArcGIS.DataManagementTools.Dissolve();
@@ -174,7 +206,7 @@ namespace SMGI.Plugin.CartographicGeneralization
             }
             catch (Exception ex)
             {
-                return "合并HYDA失败！";
+                return "合并RG_CJGL_A失败！";
             }
             #endregion
             if (bStruct)
@@ -192,9 +224,14 @@ namespace SMGI.Plugin.CartographicGeneralization
 
                     MakeFeatureLayer makeFeatureLayer = new MakeFeatureLayer();
                     makeFeatureLayer.in_features = hydlFC;
-                    makeFeatureLayer.where_clause = "GB=210400";
-                    if (hydlFC.HasCollabField())
-                        makeFeatureLayer.where_clause += " and " + cmdUpdateRecord.CurFeatureFilter;
+
+                    string baseWhereClause = BuildWhereClause(hydaFC, "GB", "=", "210400");
+
+                    if (hydaFC.HasCollabField())
+                        baseWhereClause += " AND " + cmdUpdateRecord.CurFeatureFilter;
+
+                    makeFeatureLayer.where_clause = baseWhereClause;
+
                     makeFeatureLayer.out_layer = outFCLyr;
                     SMGI.Common.Helper.ExecuteGPTool(gp, makeFeatureLayer, null);
 
@@ -251,9 +288,14 @@ namespace SMGI.Plugin.CartographicGeneralization
 
                     MakeFeatureLayer makeFeatureLayer = new MakeFeatureLayer();
                     makeFeatureLayer.in_features = hydlFC;
-                    makeFeatureLayer.where_clause = "GB<>210400";
-                    if (hydlFC.HasCollabField())
-                        makeFeatureLayer.where_clause += " and " + cmdUpdateRecord.CurFeatureFilter;
+                    
+                    string baseWhereClause = BuildWhereClause(hydaFC, "GB", "<>", "210400");
+
+                    if (hydaFC.HasCollabField())
+                        baseWhereClause += " AND " + cmdUpdateRecord.CurFeatureFilter;
+
+                    makeFeatureLayer.where_clause = baseWhereClause;
+
                     makeFeatureLayer.out_layer = outFCLyr;
                     SMGI.Common.Helper.ExecuteGPTool(gp, makeFeatureLayer, null);
 
@@ -275,6 +317,9 @@ namespace SMGI.Plugin.CartographicGeneralization
                     while ((hydlFe = hydlClipCursor.NextFeature()) != null)
                     {
                         IList<IGeometry> geoList = GetGeoParts(hydlFe.ShapeCopy, maxDistance);
+
+                        if (CheckHelper.ExistsWaterFacilities(hydlFe.ShapeCopy, (hydlFC as IDataset).Workspace as IFeatureWorkspace)) continue;
+
                         if (geoList.Count > 0)
                         {
                             guid = "";

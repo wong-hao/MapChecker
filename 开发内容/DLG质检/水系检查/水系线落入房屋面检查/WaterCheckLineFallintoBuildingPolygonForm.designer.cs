@@ -1,6 +1,6 @@
 ﻿namespace SMGI.Plugin.CartographicGeneralization
 {
-    partial class CheckLineFallintoPolygonForm
+    partial class WaterCheckLineFallintoBuildingPolygonForm
     {
         /// <summary>
         /// Required designer variable.

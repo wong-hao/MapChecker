@@ -14,9 +14,9 @@ using System.IO;
 namespace SMGI.Plugin.CartographicGeneralization
 {
     /// <summary>
-    /// 线落入面检查
+    /// 水系线落入房屋面检查
     /// </summary>
-    public class CheckLineFallintoPolygonCmd : SMGICommand
+    public class WaterCheckLineFallintoBuildingPolygonCmd : SMGICommand
     {
         public override bool Enabled
         {
@@ -29,13 +29,13 @@ namespace SMGI.Plugin.CartographicGeneralization
 
         public override void OnClick()
         {
-            var frm = new CheckLineFallintoPolygonForm(m_Application);
+            var frm = new WaterCheckLineFallintoBuildingPolygonForm(m_Application);
             frm.StartPosition = FormStartPosition.CenterParent;
 
             if (frm.ShowDialog() != DialogResult.OK)
                 return;
 
-            string outputFileName = OutputSetup.GetDir() + string.Format("\\线落入面检查_{0}.shp", frm.LineFeatureClass.AliasName);
+            string outputFileName = OutputSetup.GetDir() + string.Format("\\水系线落入房屋面检查_{0}.shp", frm.LineFeatureClass.AliasName);
 
 
             string err = "";
@@ -67,7 +67,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         }
         
         /// <summary>
-        /// 线落入面检查
+        /// 水系线落入房屋面检查
         /// </summary>
         /// <param name="resultSHPFileName"></param>
         /// <param name="checkType"></param>
@@ -77,7 +77,7 @@ namespace SMGI.Plugin.CartographicGeneralization
         /// <param name="areaFilter"></param>
         /// <param name="wo"></param>
         /// <returns></returns>
-        public static string DoCheck(string resultSHPFileName, CheckLineFallintoPolygonForm.CheckType checkType, IFeatureClass lineFC, string lineFilter, IFeatureClass areaFC, string areaFilter, WaitOperation wo = null)
+        public static string DoCheck(string resultSHPFileName, WaterCheckLineFallintoBuildingPolygonForm.CheckType checkType, IFeatureClass lineFC, string lineFilter, IFeatureClass areaFC, string areaFilter, WaitOperation wo = null)
         {
             string err = "";
 
@@ -103,7 +103,7 @@ namespace SMGI.Plugin.CartographicGeneralization
 
                 //核查并输出结果
                 ShapeFileWriter resultFile = null;
-                if (checkType == CheckLineFallintoPolygonForm.CheckType.INTERSECTS)
+                if (checkType == WaterCheckLineFallintoBuildingPolygonForm.CheckType.INTERSECTS)
                 {
                     #region 线非法落入面
                     Dictionary<int, string> errList = CheckLineFallintoPolygon(lineFC, lineQF, areaFC, areaQF, wo);
@@ -226,6 +226,8 @@ namespace SMGI.Plugin.CartographicGeneralization
                     IPolyline interGeo = to.Intersect(fe.Shape, esriGeometryDimension.esriGeometry1Dimension) as IPolyline;
                     if (interGeo != null && interGeo.Length > 0)
                     {
+                        if (CheckHelper.ExistsWaterFacilities(fe.ShapeCopy, (lineFC as IDataset).Workspace as IFeatureWorkspace)) continue;
+
                         if (result.ContainsKey(fe.OID))
                         {
                             if (result[fe.OID].Count() > 50)
